@@ -17,7 +17,7 @@ from langchain_core.prompts import ChatPromptTemplate
 # ==========================================
 # 🔑 CONFIGURACIÓN DE APIS Y CARPETAS
 # ==========================================
-os.environ["GROQ_API_KEY"] = "gskxxxxxxxxxxxxxxxxxxxx"
+os.environ["GROQ_API_KEY"] = "gskxxxxxxxxxxxxxxxxxxxxx"
 CARPETA_PDFS = r"C:\Users\Usuario\Desktop\automatizar\mi IA\mis_pdfs" 
 CARPETA_VECTORIAL = "./base_datos_chroma_multi"
 
