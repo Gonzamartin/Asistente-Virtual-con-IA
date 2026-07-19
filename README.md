@@ -5,7 +5,12 @@
 Un sistema inteligente de escritorio nativo para Windows que permite chatear y realizar consultas técnicas complejas sobre múltiples archivos **PDF** (con extracción precisa de tablas) y documentos **XML / XLM** en simultáneo.
 
 Desarrollado con una arquitectura **Cliente-Servidor** altamente eficiente, diseñada específicamente para funcionar con un rendimiento instantáneo en hardware liviano (probado en procesadores Intel Core i3) al delegar la inferencia pesada a la nube.
-<img width="600" height="300" alt="mi pc" src="https://github.com/user-attachments/assets/f9afb095-09c4-4c5e-b4e0-1db3fb342d89" />
+
+
+
+
+
+<img width="400" height="300" alt="mi pc" src="https://github.com/user-attachments/assets/f9afb095-09c4-4c5e-b4e0-1db3fb342d89" />
 ---
 
 ## 🏗️ Arquitectura del Sistema
