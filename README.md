@@ -10,7 +10,7 @@ Desarrollado con una arquitectura **Cliente-Servidor** altamente eficiente, dise
 
 
 
-<img width="800" height="300" alt="mi pc" src="https://github.com/user-attachments/assets/f9afb095-09c4-4c5e-b4e0-1db3fb342d89" />
+<img width="900" height="400" alt="mi pc" src="https://github.com/user-attachments/assets/f9afb095-09c4-4c5e-b4e0-1db3fb342d89" />
 ---
 
 ## 🏗️ Arquitectura del Sistema
