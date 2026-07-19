@@ -20,6 +20,13 @@ El software se divide en dos componentes independientes que se comunican de form
 1. **Backend (Servidor Python):** Una API ultra liviana construida con **FastAPI**. Utiliza **pdfplumber** para leer texto y celdas de tablas sin pérdidas, genera embeddings semánticos locales con **HuggingFace** (`all-MiniLM-L6-v2`) y almacena los vectores en un disco local mediante **Chroma**. Las consultas se resuelven en milisegundos usando el modelo `llama-3.1-8b-instant` en los servidores remotos de **Groq**.
 2. **Frontend (Interfaz de Escritorio C#):** Una aplicación nativa de Windows diseñada en **WPF** compilada en un único archivo ejecutable portátil (`.exe`). Ofrece una interfaz limpia y asíncrona que incluye el panel de respuestas de la IA y un visor de trazabilidad que indica qué archivos y páginas exactas se consultaron.
 
+
+
+
+<img width="300" height="150" alt="Groq" src="https://github.com/user-attachments/assets/ea9f1181-14de-4e9c-b279-12097aeca599" />
+<img width="300" height="150" alt="RAGlocal" src="https://github.com/user-attachments/assets/ba9f9b19-d879-443e-9ee9-3025efbdc488" />
+
+
 ---
 
 ## ⚡ Características Clave
