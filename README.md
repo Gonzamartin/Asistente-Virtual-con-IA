@@ -1,5 +1,6 @@
 # 💬 Asistente de IA para PDFs & XMLs (Arquitectura RAG Local-Nube)
 
+
 Un sistema inteligente de escritorio nativo para Windows que permite chatear y realizar consultas técnicas complejas sobre múltiples archivos **PDF** (con extracción precisa de tablas) y documentos **XML / XLM** en simultáneo.
 
 Desarrollado con una arquitectura **Cliente-Servidor** altamente eficiente, diseñada específicamente para funcionar con un rendimiento instantáneo en hardware liviano (probado en procesadores Intel Core i3) al delegar la inferencia pesada a la nube.
