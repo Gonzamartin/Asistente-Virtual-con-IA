@@ -10,7 +10,7 @@ Desarrollado con una arquitectura **Cliente-Servidor** altamente eficiente, dise
 
 
 
-<img width="400" height="300" alt="mi pc" src="https://github.com/user-attachments/assets/f9afb095-09c4-4c5e-b4e0-1db3fb342d89" />
+<img width="800" height="300" alt="mi pc" src="https://github.com/user-attachments/assets/f9afb095-09c4-4c5e-b4e0-1db3fb342d89" />
 ---
 
 ## 🏗️ Arquitectura del Sistema
@@ -23,8 +23,8 @@ El software se divide en dos componentes independientes que se comunican de form
 
 
 
-<img width="500" height="300" alt="Groq" src="https://github.com/user-attachments/assets/ea9f1181-14de-4e9c-b279-12097aeca599" />
-<img width="500" height="300" alt="RAGlocal" src="https://github.com/user-attachments/assets/ba9f9b19-d879-443e-9ee9-3025efbdc488" />
+<img width="450" height="300" alt="Groq" src="https://github.com/user-attachments/assets/ea9f1181-14de-4e9c-b279-12097aeca599" />
+<img width="450" height="300" alt="RAGlocal" src="https://github.com/user-attachments/assets/ba9f9b19-d879-443e-9ee9-3025efbdc488" />
 
 
 ---
