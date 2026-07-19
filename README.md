@@ -1,3 +1,4 @@
+<img width="1408" height="768" alt="mi pc" src="https://github.com/user-attachments/assets/f9afb095-09c4-4c5e-b4e0-1db3fb342d89" />
 # 💬 Asistente de IA para PDFs & XMLs (Arquitectura RAG Local-Nube)
 
 
