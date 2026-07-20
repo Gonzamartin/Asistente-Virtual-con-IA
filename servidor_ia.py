@@ -1,4 +1,5 @@
-import os
+mport os
+import sys
 import uvicorn
 import re
 import xml.etree.ElementTree as ET
@@ -24,18 +25,48 @@ load_dotenv()
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 if not GROQ_API_KEY:
-    os.environ["GROQ_API_KEY"] = "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"
+    # 📑 REEMPLAZÁ ESTA CADENA POR TU NUEVA API KEY ACTIVA GENERADA EN GROQ:
+    os.environ["GROQ_API_KEY"] = "AcÁ va tu clave groq"
 else:
     os.environ["GROQ_API_KEY"] = GROQ_API_KEY
+
 
 CARPETA_PDFS = r"C:\Users\Usuario\Desktop\automatizar\mi IA\mis_pdfs" 
 CARPETA_VECTORIAL = "./base_datos_chroma_multi"
 
-sistema_ia = None
+# Variables globales unificadas para el ciclo de vida de FastAPI e i3
+base_datos = None
+cadena_documentos = None
 ultima_respuesta_ia = "" 
+archivos_disponibles = []
+ultimas_mediciones_fisicas = {"humedad_suelo": 0.0, "temperatura": 0.0}
 
 class Consulta(BaseModel):
     pregunta: str
+
+class DatosSensores(BaseModel):
+    humedad_suelo: float
+    temperatura: float
+
+# ==========================================
+# 📑 PROCESADORES DE ESTRUCTURAS Y ARCHIVOS
+# ==========================================
+def convertir_tabla_a_markdown(tabla):
+    """Transforma una matriz de celdas de pdfplumber en una tabla Markdown limpia."""
+    if not tabla or not any(tabla):
+        return ""
+    
+    lineas = []
+    tabla_limpia = [[str(celda).replace('\n', ' ').strip() if celda is not None else "" for celda in fila] for fila in tabla]
+    
+    lineas.append("| " + " | ".join(tabla_limpia) + " |")
+    lineas.append("| " + " | ".join(["---"] * len(tabla_limpia)) + " |")
+    
+    for fila in tabla_limpia[1:]:
+        if any(fila):  
+            lineas.append("| " + " | ".join(fila) + " |")
+            
+    return "\n".join(lineas) + "\n\n"
 
 def extraer_texto_de_xml(ruta_xml):
     """Extrae todo el texto visible de un archivo XML/XLM de forma segura."""
@@ -49,15 +80,16 @@ def extraer_texto_de_xml(ruta_xml):
         return ""
 
 def cargar_multiples_documentos(ruta_carpeta):
-    """Escanea la carpeta leyendo tanto archivos PDF como XML/XLM."""
+    """Escanea la carpeta extrayendo texto plano y tablas estructuradas (PDF y XML)."""
     if not os.path.exists(ruta_carpeta):
         os.makedirs(ruta_carpeta)
         return []
     
     documentos_langchain = []
-    archivos = os.listdir(ruta_carpeta)
+    global archivos_disponibles
+    archivos_disponibles = os.listdir(ruta_carpeta)
     
-    for nombre_archivo in archivos:
+    for nombre_archivo in archivos_disponibles:
         ruta_completa = os.path.join(ruta_carpeta, nombre_archivo)
         ext = nombre_archivo.lower()
         
@@ -65,14 +97,27 @@ def cargar_multiples_documentos(ruta_carpeta):
             try:
                 with pdfplumber.open(ruta_completa) as pdf:
                     for numero_pagina, pagina in enumerate(pdf.pages):
-                        texto = pagina.extract_text()
-                        if texto and texto.strip():
+                        tablas_visibles = pagina.extract_tables()
+                        texto_tablas_md = ""
+                        for tabla in tablas_visibles:
+                            texto_tablas_md += convertir_tabla_a_markdown(tabla)
+                        
+                        texto_plano = pagina.extract_text() or ""
+                        
+                        contenido_final = ""
+                        if texto_tablas_md:
+                            contenido_final += f"--- ESTRUCTURA DE TABLA DETECTADA ---\n{texto_tablas_md}"
+                        if texto_plano.strip():
+                            contenido_final += f"--- TEXTO DE LA PÁGINA ---\n{texto_plano}"
+                            
+                        if contenido_final.strip():
                             doc = Document(
-                                page_content=texto,
+                                page_content=contenido_final,
                                 metadata={"source": str(nombre_archivo), "page": int(numero_pagina + 1)}
                             )
                             documentos_langchain.append(doc)
-            except Exception:
+            except Exception as e:
+                print(f"❌ Error en PDF {nombre_archivo}: {e}")
                 continue
                 
         elif ext.endswith('.xml') or ext.endswith('.xlm'):
@@ -85,12 +130,21 @@ def cargar_multiples_documentos(ruta_carpeta):
                 documentos_langchain.append(doc)
                 
     return documentos_langchain
-
+# ==========================================
+# 🧠 INICIALIZACIÓN DEL SISTEMA VECTORIAL
+# ==========================================
 def inicializar_sistema():
-    """Genera los vectores en el disco y conecta la base de datos con Groq."""
-    global sistema_ia
+    """Genera los vectores en el disco y conecta la arquitectura con Groq."""
+    global base_datos, cadena_documentos, archivos_disponibles
     print("🧠 Inicializando modelo de lenguaje para procesamiento de texto...")
-    embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+    
+    embeddings = HuggingFaceEmbeddings(
+        model_name="sentence-transformers/all-MiniLM-L6-v2",
+        cache_folder="./modelo_embeddings_cache"
+    )
+    
+    if os.path.exists(CARPETA_PDFS):
+        archivos_disponibles = os.listdir(CARPETA_PDFS)
     
     if os.path.exists(CARPETA_VECTORIAL):
         print("📚 Reutilizando base de datos híbrida indexada en el disco...")
@@ -105,7 +159,7 @@ def inicializar_sistema():
                 persist_directory=CARPETA_VECTORIAL
             )
         else:
-            separador = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+            separador = RecursiveCharacterTextSplitter(chunk_size=1800, chunk_overlap=400)
             fragmentos = separador.split_documents(documentos)
             base_datos = Chroma.from_documents(
                 documents=fragmentos, 
@@ -114,11 +168,10 @@ def inicializar_sistema():
             )
         print("✅ ¡Documentos indexados con éxito!")
     
-    recuperador = base_datos.as_retriever(search_kwargs={"k": 5})
-    llm = ChatGroq(model="llama-3.1-8b-instant", temperature=0.1)
+    llm = ChatGroq(model="llama-3.1-8b-instant", temperature=0.0)
     
     instrucciones = (
-        "Sos un asistente de IA experto en análisis técnico de documentos (PDFs y XMLs).\n"
+        "Sos un asistente de IA expert en análisis técnico de documentos (PDFs y XMLs).\n"
         "Tu único objetivo es responder la pregunta del usuario utilizando de forma estricta "
         "y exclusiva el contexto provisto abajo. No uses conocimientos externos.\n\n"
         
@@ -136,7 +189,6 @@ def inicializar_sistema():
     )
     prompt = ChatPromptTemplate.from_messages([("system", instrucciones), ("human", "{input}")])
     cadena_documentos = create_stuff_documents_chain(llm, prompt)
-    sistema_ia = create_retrieval_chain(recuperador, cadena_documentos)
     print("🚀 Servidor de IA indexado y listo.")
 
 @asynccontextmanager
@@ -150,17 +202,55 @@ app = FastAPI(title="API Servidor RAG", lifespan=lifespan)
 def ruta_raiz():
     return {"status": "online"}
 
+@app.post("/actualizar-sensores")
+def actualizar_sensores(datos: DatosSensores):
+    global ultimas_mediciones_fisicas
+    ultimas_mediciones_fisicas["humedad_suelo"] = datos.humedad_suelo
+    ultimas_mediciones_fisicas["temperatura"] = datos.temperatura
+    return {"status": "telemetria_recibida", "datos": ultimas_mediciones_fisicas}
+
 @app.post("/preguntar")
 def preguntar_ia(consulta: Consulta):
-    global sistema_ia, ultima_respuesta_ia
-    if not sistema_ia:
+    global base_datos, cadena_documentos, ultima_respuesta_ia, archivos_disponibles, ultimas_mediciones_fisicas
+    if base_datos is None or cadena_documentos is None:
         raise HTTPException(status_code=503, detail="El sistema de IA no está inicializado.")
     try:
-        resultado = sistema_ia.invoke({"input": consulta.pregunta})
+        if not archivos_disponibles and os.path.exists(CARPETA_PDFS):
+            archivos_disponibles = os.listdir(CARPETA_PDFS)
+
+               # 🕵️‍♂️ ENRUTADOR DINÁMICO DE ARCHIVOS (CORREGIDO)
+        archivo_objetivo = None
+        for archivo in archivos_disponibles:
+            # os.path.splitext devuelve una tupla (nombre, ext). Usamos [0] para sacar solo el nombre.
+            nombre_sin_ext = os.path.splitext(archivo)[0] 
+            if nombre_sin_ext.lower() in consulta.pregunta.lower() or archivo.lower() in consulta.pregunta.lower():
+                archivo_objetivo = archivo
+                break
+
+        
+        search_kwargs = {"k": 7}
+        if archivo_objetivo:
+            search_kwargs["filter"] = {"source": archivo_objetivo}
+            print(f"🎯 Consulta enrutada exclusivamente al archivo: {archivo_objetivo}")
+        else:
+            print("🌍 Consulta global distribuida en todos los documentos.")
+            
+        recuperador_dinamico = base_datos.as_retriever(search_kwargs=search_kwargs)
+        sistema_ia_dinamico = create_retrieval_chain(recuperador_dinamico, cadena_documentos)
+        
+        bloque_sensores = (
+            f"\n\n[DATOS DE SENSORES EN TIEMPO REAL EN EL CAMPO]:\n"
+            f"- Humedad actual del suelo: {ultimas_mediciones_fisicas['humedad_suelo']}% \n"
+            f"- Temperatura ambiente: {ultimas_mediciones_fisicas['temperatura']}°C\n"
+            f"Utilizá estos valores físicos actuales para contrastarlos con los límites técnicos de los PDFs.\n"
+        )
+        
+        pregunta_enriquecida = consulta.pregunta + bloque_sensores
+        resultado = sistema_ia_dinamico.invoke({"input": pregunta_enriquecida})
         ultima_respuesta_ia = resultado["answer"]
         
         fuentes = []
-        documentos_recuperados = resultado.get("context", resultado.get("source_documents", []))
+        documentos_recuperados = resultado.get("context", [])
             
         for doc in documentos_recuperados:
             archivo = doc.metadata.get("source", "Desconocido")
@@ -175,8 +265,10 @@ def preguntar_ia(consulta: Consulta):
         fuentes_unicas = list(sorted(set(fuentes)))
         return {"respuesta": resultado["answer"], "fuentes": fuentes_unicas}
     except Exception as e:
+        import traceback
+        print("❌ ERROR DETECTADO EN EL ENDPOINT /PREGUNTAR:")
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
-
 @app.post("/exportar")
 def exportar_a_excel():
     global ultima_respuesta_ia
@@ -204,12 +296,14 @@ def exportar_a_excel():
         if not tablas_encontradas:
             raise HTTPException(status_code=404, detail="No se encontraron tablas.")
             
-        datos_tabla = tablas_encontradas[0]
+                # --- REPARACIÓN DE VARIABLES MATRICIALES EN EXPORTAR ---
+        datos_tabla = tablas_encontradas[0] # Extraemos la primera tabla detectada
         if len(datos_tabla) < 2:
             raise HTTPException(status_code=404, detail="La tabla no contiene datos suficientes.")
             
-        encabezados = datos_tabla[0]
-        filas = datos_tabla[1:]
+        encabezados = datos_tabla[0] # La primera fila son los títulos
+        filas = datos_tabla[1:]      # El resto son los registros
+
         
         num_columnas = len(encabezados)
         filas_normalizadas = []
@@ -221,52 +315,51 @@ def exportar_a_excel():
             filas_normalizadas.append(f)
         
         df = pd.DataFrame(filas_normalizadas, columns=encabezados)
-        ruta_escritorio = os.path.join(os.environ['USERPROFILE'], 'Desktop')
+        ruta_escritorio = os.path.join(os.path.expanduser("~"), "Desktop")
         ruta_excel = os.path.join(ruta_escritorio, 'Tabla_Exportada_IA.xlsx')
         
-        # Guardamos usando openpyxl de forma avanzada para aplicar estilos
         with pd.ExcelWriter(ruta_excel, engine='openpyxl') as writer:
             df.to_excel(writer, index=False, sheet_name="Datos IA")
             
-            # Importamos las herramientas de diseño de openpyxl
             from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+            from openpyxl.utils import get_column_letter
             
             workbook = writer.book
             worksheet = writer.sheets["Datos IA"]
             
-            # Estilos para la cabecera (Azul oscuro, letra blanca, negrita, centrado)
             fill_cabecera = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
             font_cabecera = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
             align_centro = Alignment(horizontal="center", vertical="center", wrap_text=True)
             
-            # Bordes finos grises para toda la tabla
             borde_fino = Side(border_style="thin", color="D9D9D9")
             cuadrícula = Border(left=borde_fino, right=borde_fino, top=borde_fino, bottom=borde_fino)
             
-            # Aplicamos diseño a la fila de títulos
-            for cell in worksheet[1]:
+            for cell in worksheet:
                 cell.fill = fill_cabecera
                 cell.font = font_cabecera
                 cell.alignment = align_centro
                 cell.border = cuadrícula
             
-            # Autoajuste automático de columnas según el largo del texto + margen
-            for col in worksheet.columns:
+            for col_idx, col in enumerate(worksheet.columns, start=1):
                 max_len = 0
-                col_letter = col[0].column_letter
+                col_letter = get_column_letter(col_idx)
+                
                 for cell in col:
-                    if cell.row > 1: # Formateamos celdas de datos
+                    if cell.row > 1: 
                         cell.border = cuadrícula
                         cell.alignment = Alignment(vertical="center")
                     if cell.value:
                         max_len = max(max_len, len(str(cell.value)))
-                # Le damos un aire de 4 caracteres extra para que no quede pegado
+                        
                 worksheet.column_dimensions[col_letter].width = max(max_len + 4, 12)
                 
         return {"status": "success", "archivo": ruta_excel}
     except Exception as e:
+        import traceback
+        print("❌ ERROR DETECTADO EN EL ENDPOINT /EXPORTAR:")
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
-
 
 if __name__ == "__main__":
     uvicorn.run(app, host="127.0.0.1", port=8000)
+
