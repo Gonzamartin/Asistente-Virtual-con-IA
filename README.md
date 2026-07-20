@@ -10,13 +10,13 @@ Desarrollado con una arquitectura **Cliente-Servidor** altamente eficiente, dise
 
 
 
-<img width="800" height="400" alt="mi pc" src="https://github.com/user-attachments/assets/f9afb095-09c4-4c5e-b4e0-1db3fb342d89" />
+<img width="800" height="300" alt="mi pc" src="https://github.com/user-attachments/assets/f9afb095-09c4-4c5e-b4e0-1db3fb342d89" />
 
 ---
 ** Interfaz del Usuario.
 ** Excel con datos solicitados.
-<img width="300" height="300" alt="interfaz" src="https://github.com/user-attachments/assets/f30feb3e-68b6-4b38-80cc-f6cc97c504ab" />
-<img width="300" height="300" alt="tabla" src="https://github.com/user-attachments/assets/2a58bade-4c75-4877-b42f-0836c69fe941" />
+<img width="100" height="100" alt="interfaz" src="https://github.com/user-attachments/assets/f30feb3e-68b6-4b38-80cc-f6cc97c504ab" />
+<img width="100" height="100" alt="tabla" src="https://github.com/user-attachments/assets/2a58bade-4c75-4877-b42f-0836c69fe941" />
 
 
 
