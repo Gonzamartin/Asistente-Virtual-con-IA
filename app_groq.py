@@ -13,7 +13,7 @@ from langchain_core.prompts import ChatPromptTemplate
 # ==========================================
 # 🔑 CONFIGURACIÓN DE APIS Y CARPETAS
 # ==========================================
-os.environ["GROQ_API_KEY"] = "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" 
+os.environ["GROQ_API_KEY"] = "Aca Va LA APIKEY" 
 
 # 📂 Indicamos la carpeta del escritorio donde vas a guardar tus PDFs
 CARPETA_PDFS = r"C:\Users\Usuario\Desktop\automatizar\mi IA\mis_pdfs" 
