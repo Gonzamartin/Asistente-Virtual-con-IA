@@ -14,10 +14,11 @@ Desarrollado con una arquitectura **Cliente-Servidor** altamente eficiente, dise
 
 ---
 ** Interfaz del Usuario.
-<img width="300" height="300" alt="interfaz" src="https://github.com/user-attachments/assets/f30feb3e-68b6-4b38-80cc-f6cc97c504ab" />
-
 ** Excel con datos solicitados.
+<img width="300" height="300" alt="interfaz" src="https://github.com/user-attachments/assets/f30feb3e-68b6-4b38-80cc-f6cc97c504ab" />
 <img width="300" height="300" alt="tabla" src="https://github.com/user-attachments/assets/2a58bade-4c75-4877-b42f-0836c69fe941" />
+
+
 
 
 
