@@ -88,3 +88,24 @@ dotnet publish -c Release -r win-x64 --self-contained true /p:PublishSingleFile=
 5. En cuanto el motor de Python termine de levantar la base de datos, la interfaz se desbloqueará sola y podrás chatear libremente con tus documentos.
 
 > 🔄 **Importante:** Cada vez que agregues, quites o modifiques archivos dentro de la carpeta `mis_pdfs`, borrá la carpeta amarilla `base_datos_chroma_multi` para obligar al sistema a re-indexar los nuevos datos por única vez.
+
+---
+
+## ⚖️ Diferencias Estratégicas vs. Google NotebookLM
+
+A diferencia de soluciones comerciales cerradas en la nube como Google NotebookLM, este sistema fue concebido bajo una arquitectura híbrida optimizada para entornos corporativos y de ingeniería que exigen **privacidad, control absoluto de los datos y precisión numérica**.
+
+### 📊 Tabla Comparativa Técnica
+
+| Dimensión Técnica | Este Proyecto (RAG Local-Nube) | Google NotebookLM |
+| :--- | :--- | :--- |
+| **Privacidad & Soberanía** | **100% Control Local**. Los vectores e índices semánticos residen en tu disco rígido (`Chroma`). Ningún documento técnico se usa para entrenar modelos públicos. | **Caja Negra en la Nube**. Los archivos deben subirse obligatoriamente a los servidores de Google Cloud. |
+| **Extracción de Tablas** | **Extracción Estructural Profunda (`pdfplumber`)**. Mapea matrices de celdas reales convirtiéndolas en tablas Markdown (`|---|`). Ideal para dosificaciones o cuadros de suelos. | **Lectura Lineal**. Procesa el PDF como texto plano continuo, deformando tablas extensas y mezclando columnas con texto adyacente. |
+| **Soporte Híbrido XML / XLM** | **Nativo**. Cuenta con un procesador jerárquico (`ElementTree`) para interpretar etiquetas de datos estructurados y cruzarlos con manuales en la misma consulta. | **Incompatible**. No soporta formatos XML nativos. Exige la conversión manual a texto plano, destruyendo las etiquetas de origen. |
+| **Impacto en Hardware (i3)** | **Ultra Liviano (Instantáneo)**. La API corre sobre FastAPI de forma asíncrona y la UI compila en C# WPF nativo. La inferencia pesada (Llama 3.1) se delega por API de alta velocidad. | **Consumo Variable**. Depende críticamente de la carga del navegador web, el uso de memoria RAM del cliente y la latencia del servidor web general. |
+| **Automatización del Flujo** | **Integrado**. Permite la exportación directa y estilizada de las tablas analizadas a planillas Excel corporativas (`.xlsx`) con un solo clic desde la interfaz. | **Limitado**. Obliga a copiar el texto manualmente o exportar únicamente a documentos de Google Docs en la nube. |
+
+### 🧠 ¿Por qué esta arquitectura es superior para datos técnicos?
+
+1. **Anulación de Contaminación Cruzada:** Mientras que las plataformas web manejan contextos globales laxos, este sistema integra un *Enrutador Dinámico de Metadatos* que detecta si tu pregunta se refiere a un archivo específico (ej: *"Manual Zona Norte"*), aislando la búsqueda vectorial a ese documento exacto para evitar el cruce accidental de cifras.
+2. **Determinismo Numérico Absoluto:** Al configurar el modelo de Groq con una `temperature: 0.0`, el sistema elimina el comportamiento creativo del LLM. Esto garantiza que las dosificaciones, compuestos químicos o valores decimales extraídos de las tablas se mantengan idénticos a los del documento original, habilitando un procesamiento seguro mediante la librería Pandas en el backend.
