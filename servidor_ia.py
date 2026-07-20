@@ -1,10 +1,12 @@
 import os
 import uvicorn
+import re
 import xml.etree.ElementTree as ET
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import pdfplumber  
+import pandas as pd
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_chroma import Chroma
@@ -13,15 +15,24 @@ from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_classic.chains import create_retrieval_chain  
 from langchain_classic.chains.combine_documents import create_stuff_documents_chain  
 from langchain_core.prompts import ChatPromptTemplate
+from dotenv import load_dotenv
 
 # ==========================================
-# 🔑 CONFIGURACIÓN DE APIS Y CARPETAS
+# 🔑 CONFIGURACIÓN SEGURA DE ENTORNO
 # ==========================================
-os.environ["GROQ_API_KEY"] = "gskxxxxxxxxxxxxxxxxxxxxx"
+load_dotenv()
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+
+if not GROQ_API_KEY:
+    os.environ["GROQ_API_KEY"] = "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"
+else:
+    os.environ["GROQ_API_KEY"] = GROQ_API_KEY
+
 CARPETA_PDFS = r"C:\Users\Usuario\Desktop\automatizar\mi IA\mis_pdfs" 
 CARPETA_VECTORIAL = "./base_datos_chroma_multi"
 
 sistema_ia = None
+ultima_respuesta_ia = "" 
 
 class Consulta(BaseModel):
     pregunta: str
@@ -50,7 +61,6 @@ def cargar_multiples_documentos(ruta_carpeta):
         ruta_completa = os.path.join(ruta_carpeta, nombre_archivo)
         ext = nombre_archivo.lower()
         
-        # 📄 PROCESADOR DE PDF (Tablas y texto)
         if ext.endswith('.pdf'):
             try:
                 with pdfplumber.open(ruta_completa) as pdf:
@@ -59,19 +69,18 @@ def cargar_multiples_documentos(ruta_carpeta):
                         if texto and texto.strip():
                             doc = Document(
                                 page_content=texto,
-                                metadata={"source": nombre_archivo, "page": numero_pagina + 1}
+                                metadata={"source": str(nombre_archivo), "page": int(numero_pagina + 1)}
                             )
                             documentos_langchain.append(doc)
             except Exception:
                 continue
                 
-        # 📊 PROCESADOR DE XML / XLM
         elif ext.endswith('.xml') or ext.endswith('.xlm'):
             texto_xml = extraer_texto_de_xml(ruta_completa)
             if texto_xml:
                 doc = Document(
                     page_content=texto_xml,
-                    metadata={"source": nombre_archivo, "page": 1}
+                    metadata={"source": str(nombre_archivo), "page": 1}
                 )
                 documentos_langchain.append(doc)
                 
@@ -109,12 +118,18 @@ def inicializar_sistema():
     llm = ChatGroq(model="llama-3.1-8b-instant", temperature=0.1)
     
     instrucciones = (
-        "Sos un asistente de IA experto en análisis técnico de documentos (PDFs y XMLs). "
+        "Sos un asistente de IA experto en análisis técnico de documentos (PDFs y XMLs).\n"
         "Tu único objetivo es responder la pregunta del usuario utilizando de forma estricta "
         "y exclusiva el contexto provisto abajo. No uses conocimientos externos.\n\n"
-        "REGLAS OBLIGATORIAS DE RESPUESTA:\n"
+        
+        "REGLAS OBLIGATORIAS DE RESPUESTA (REQUERIMIENTO DE INTERFAZ):\n"
         "1. IDIOMA Y TONO: Responde siempre en español de Argentina de forma clara y directa.\n"
-        "2. ESTRUCTURA VISUAL: Organiza la información técnica o tablas de datos usando tablas Markdown legibles o viñetas.\n"
+        "2. ESTRUCTURA DE TABLAS (CRUCIAL): Si los datos del contexto contienen matrices, cuadros técnicos o dosificaciones, DEBES armar obligatoriamente tablas usando el formato Markdown clásico con barras verticales.\n"
+        "Ejemplo exacto de formato obligatorio:\n"
+        "| Clase de Herbicida | Efecto | Uso |\n"
+        "| --- | --- | --- |\n"
+        "| Selectivos | Matan solo malezas | Cultivos |\n"
+        "Usa el formato tabular siempre que sea lógicamente posible ordenar la información en filas y columnas.\n"
         "3. TRATAMIENTO DE LA DUDA: Si la respuesta no figura explícitamente en el contexto, di exactamente: "
         "'Lo siento, no encuentro esa información en los documentos.' No inventes nada bajo ninguna circunstancia.\n\n"
         "Contexto:\n{context}"
@@ -124,44 +139,134 @@ def inicializar_sistema():
     sistema_ia = create_retrieval_chain(recuperador, cadena_documentos)
     print("🚀 Servidor de IA indexado y listo.")
 
-# ==========================================
-# ⚙️ ADMINISTRADOR DE CICLO DE VIDA (LIFESPAN)
-# ==========================================
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Corre la inicialización al encender el backend 🚀
     inicializar_sistema()
     yield
 
-# Inicializamos FastAPI usando el manejador moderno de eventos
 app = FastAPI(title="API Servidor RAG", lifespan=lifespan)
 
 @app.get("/")
 def ruta_raiz():
-    """Ruta de prueba que usa la app de C# para verificar la conexión."""
     return {"status": "online"}
 
 @app.post("/preguntar")
 def preguntar_ia(consulta: Consulta):
-    global sistema_ia
+    global sistema_ia, ultima_respuesta_ia
     if not sistema_ia:
         raise HTTPException(status_code=503, detail="El sistema de IA no está inicializado.")
     try:
         resultado = sistema_ia.invoke({"input": consulta.pregunta})
+        ultima_respuesta_ia = resultado["answer"]
+        
         fuentes = []
-        for doc in resultado["context"]:
+        documentos_recuperados = resultado.get("context", resultado.get("source_documents", []))
+            
+        for doc in documentos_recuperados:
             archivo = doc.metadata.get("source", "Desconocido")
-            pagina = doc.metadata.get("page", 0)
-            if archivo != "vacio":
-                # Si el archivo es un XML o XLM omitimos el número de página
+            pagina = doc.metadata.get("page", 1)
+            
+            if archivo and archivo != "vacio" and archivo != "Desconocido":
                 if archivo.lower().endswith(('.xml', '.xlm')):
-                    fuentes.append(f"• {nombre_archivo}")
+                    fuentes.append(f"• {archivo}")
                 else:
                     fuentes.append(f"• {archivo} (Pág. {pagina})")
-        fuentes_unicas = list(set(fuentes))
+                    
+        fuentes_unicas = list(sorted(set(fuentes)))
         return {"respuesta": resultado["answer"], "fuentes": fuentes_unicas}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/exportar")
+def exportar_a_excel():
+    global ultima_respuesta_ia
+    if not ultima_respuesta_ia:
+        raise HTTPException(status_code=400, detail="No hay datos previos para exportar.")
+    try:
+        lineas = ultima_respuesta_ia.split('\n')
+        tablas_encontradas = []
+        tabla_actual = []
+        
+        for linea in lineas:
+            if '|' in linea:
+                if re.match(r'^\s*\|[\s\-:|]*\|\s*$', linea):
+                    continue
+                celdas = [c.strip() for c in linea.split('|')[1:-1]]
+                if celdas:
+                    tabla_actual.append(celdas)
+            else:
+                if tabla_actual:
+                    tablas_encontradas.append(tabla_actual)
+                    tabla_actual = []
+        if tabla_actual:
+            tablas_encontradas.append(tabla_actual)
+            
+        if not tablas_encontradas:
+            raise HTTPException(status_code=404, detail="No se encontraron tablas.")
+            
+        datos_tabla = tablas_encontradas[0]
+        if len(datos_tabla) < 2:
+            raise HTTPException(status_code=404, detail="La tabla no contiene datos suficientes.")
+            
+        encabezados = datos_tabla[0]
+        filas = datos_tabla[1:]
+        
+        num_columnas = len(encabezados)
+        filas_normalizadas = []
+        for f in filas:
+            if len(f) < num_columnas:
+                f = f + [""] * (num_columnas - len(f))
+            elif len(f) > num_columnas:
+                f = f[:num_columnas]
+            filas_normalizadas.append(f)
+        
+        df = pd.DataFrame(filas_normalizadas, columns=encabezados)
+        ruta_escritorio = os.path.join(os.environ['USERPROFILE'], 'Desktop')
+        ruta_excel = os.path.join(ruta_escritorio, 'Tabla_Exportada_IA.xlsx')
+        
+        # Guardamos usando openpyxl de forma avanzada para aplicar estilos
+        with pd.ExcelWriter(ruta_excel, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False, sheet_name="Datos IA")
+            
+            # Importamos las herramientas de diseño de openpyxl
+            from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+            
+            workbook = writer.book
+            worksheet = writer.sheets["Datos IA"]
+            
+            # Estilos para la cabecera (Azul oscuro, letra blanca, negrita, centrado)
+            fill_cabecera = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
+            font_cabecera = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
+            align_centro = Alignment(horizontal="center", vertical="center", wrap_text=True)
+            
+            # Bordes finos grises para toda la tabla
+            borde_fino = Side(border_style="thin", color="D9D9D9")
+            cuadrícula = Border(left=borde_fino, right=borde_fino, top=borde_fino, bottom=borde_fino)
+            
+            # Aplicamos diseño a la fila de títulos
+            for cell in worksheet[1]:
+                cell.fill = fill_cabecera
+                cell.font = font_cabecera
+                cell.alignment = align_centro
+                cell.border = cuadrícula
+            
+            # Autoajuste automático de columnas según el largo del texto + margen
+            for col in worksheet.columns:
+                max_len = 0
+                col_letter = col[0].column_letter
+                for cell in col:
+                    if cell.row > 1: # Formateamos celdas de datos
+                        cell.border = cuadrícula
+                        cell.alignment = Alignment(vertical="center")
+                    if cell.value:
+                        max_len = max(max_len, len(str(cell.value)))
+                # Le damos un aire de 4 caracteres extra para que no quede pegado
+                worksheet.column_dimensions[col_letter].width = max(max_len + 4, 12)
+                
+        return {"status": "success", "archivo": ruta_excel}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 if __name__ == "__main__":
     uvicorn.run(app, host="127.0.0.1", port=8000)
