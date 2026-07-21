@@ -1,4 +1,4 @@
-mport os
+import os
 import sys
 import uvicorn
 import re
@@ -25,29 +25,20 @@ load_dotenv()
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 if not GROQ_API_KEY:
-    # 📑 REEMPLAZÁ ESTA CADENA POR TU NUEVA API KEY ACTIVA GENERADA EN GROQ:
-    os.environ["GROQ_API_KEY"] = "AcÁ va tu clave groq"
-else:
+    os.environ["GROQ_API_KEY"] = "Aca va la api":
     os.environ["GROQ_API_KEY"] = GROQ_API_KEY
-
 
 CARPETA_PDFS = r"C:\Users\Usuario\Desktop\automatizar\mi IA\mis_pdfs" 
 CARPETA_VECTORIAL = "./base_datos_chroma_multi"
 
-# Variables globales unificadas para el ciclo de vida de FastAPI e i3
+# Variables globales para el ciclo de vida de FastAPI
 base_datos = None
 cadena_documentos = None
 ultima_respuesta_ia = "" 
 archivos_disponibles = []
-ultimas_mediciones_fisicas = {"humedad_suelo": 0.0, "temperatura": 0.0}
 
 class Consulta(BaseModel):
     pregunta: str
-
-class DatosSensores(BaseModel):
-    humedad_suelo: float
-    temperatura: float
-
 # ==========================================
 # 📑 PROCESADORES DE ESTRUCTURAS Y ARCHIVOS
 # ==========================================
@@ -59,13 +50,14 @@ def convertir_tabla_a_markdown(tabla):
     lineas = []
     tabla_limpia = [[str(celda).replace('\n', ' ').strip() if celda is not None else "" for celda in fila] for fila in tabla]
     
-    lineas.append("| " + " | ".join(tabla_limpia) + " |")
-    lineas.append("| " + " | ".join(["---"] * len(tabla_limpia)) + " |")
-    
-    for fila in tabla_limpia[1:]:
-        if any(fila):  
-            lineas.append("| " + " | ".join(fila) + " |")
-            
+    if len(tabla_limpia) > 0:
+        lineas.append("| " + " | ".join(tabla_limpia[0]) + " |")
+        lineas.append("| " + " | ".join(["---"] * len(tabla_limpia[0])) + " |")
+        
+        for fila in tabla_limpia[1:]:
+            if any(fila):  
+                lineas.append("| " + " | ".join(fila) + " |")
+                
     return "\n".join(lineas) + "\n\n"
 
 def extraer_texto_de_xml(ruta_xml):
@@ -130,12 +122,10 @@ def cargar_multiples_documentos(ruta_carpeta):
                 documentos_langchain.append(doc)
                 
     return documentos_langchain
-# ==========================================
-# 🧠 INICIALIZACIÓN DEL SISTEMA VECTORIAL
-# ==========================================
+
 def inicializar_sistema():
     """Genera los vectores en el disco y conecta la arquitectura con Groq."""
-    global base_datos, cadena_documentos, archivos_disponibles
+    global base_datos, cadena_documentos, archivos_disponibles, cadena_combinada_global
     print("🧠 Inicializando modelo de lenguaje para procesamiento de texto...")
     
     embeddings = HuggingFaceEmbeddings(
@@ -159,7 +149,9 @@ def inicializar_sistema():
                 persist_directory=CARPETA_VECTORIAL
             )
         else:
-            separador = RecursiveCharacterTextSplitter(chunk_size=1800, chunk_overlap=400)
+            # Buscá esta línea en inicializar_sistema() y cambiala así:
+            separador = RecursiveCharacterTextSplitter(chunk_size=2200, chunk_overlap=450)
+
             fragmentos = separador.split_documents(documentos)
             base_datos = Chroma.from_documents(
                 documents=fragmentos, 
@@ -168,112 +160,156 @@ def inicializar_sistema():
             )
         print("✅ ¡Documentos indexados con éxito!")
     
-    llm = ChatGroq(model="llama-3.1-8b-instant", temperature=0.0)
+    # Buscá la inicialización del LLM y cambiala por el modelo grande de 70B:
+        # [REPARACIÓN] Cambiamos el modelo discontinuado por la versión 3.3 actualizada
+    llm = ChatGroq(model="llama-3.3-70b-versatile", temperature=0.0)
+
+
     
     instrucciones = (
-        "Sos un asistente de IA expert en análisis técnico de documentos (PDFs y XMLs).\n"
+        "Sos un asistente de Inteligencia Artificial experto en análisis técnico de ingeniería.\n"
         "Tu único objetivo es responder la pregunta del usuario utilizando de forma estricta "
-        "y exclusiva el contexto provisto abajo. No uses conocimientos externos.\n\n"
+        "y exclusiva el contexto extraído de sus documentos que se te provee abajo.\n\n"
         
-        "REGLAS OBLIGATORIAS DE RESPUESTA (REQUERIMIENTO DE INTERFAZ):\n"
-        "1. IDIOMA Y TONO: Responde siempre en español de Argentina de forma clara y directa.\n"
-        "2. ESTRUCTURA DE TABLAS (CRUCIAL): Si los datos del contexto contienen matrices, cuadros técnicos o dosificaciones, DEBES armar obligatoriamente tablas usando el formato Markdown clásico con barras verticales.\n"
-        "Ejemplo exacto de formato obligatorio:\n"
-        "| Clase de Herbicida | Efecto | Uso |\n"
-        "| --- | --- | --- |\n"
-        "| Selectivos | Matan solo malezas | Cultivos |\n"
-        "Usa el formato tabular siempre que sea lógicamente posible ordenar la información en filas y columnas.\n"
-        "3. TRATAMIENTO DE LA DUDA: Si la respuesta no figura explícitamente en el contexto, di exactamente: "
-        "'Lo siento, no encuentro esa información en los documentos.' No inventes nada bajo ninguna circunstancia.\n\n"
-        "Contexto:\n{context}"
+        "DIRECTIVAS OBLIGATORIAS DE COMPORTAMIENTO (LEER CON ATENCIÓN):\n"
+        "1. PROHIBICIÓN DE EXCUSAS: Tenés acceso absoluto y nativo a los documentos del usuario. Está TOTALMENTE PROHIBIDO decir frases como 'No tengo acceso a tus archivos', 'No puedo ver tu computadora', 'Basado en el texto provisto' o 'Según lo que me diste'. Respondé directamente la información técnica como si los archivos fueran tu propia memoria.\n"
+        "2. IDIOMA Y TONO: Responde siempre en español de Argentina de manera clara, profesional, concisa y directa.\n"
+        "3. ESTRUCTURA VISUAL: Organizá la información usando viñetas (puntos) o tablas Markdown con barras verticales para facilitar su lectura rápida.\n"
+        "4. TRATAMIENTO DE LA DUDA: Si la respuesta no figura explícitamente en el contexto provisto abajo, di exactamente: 'Lo siento, no encuentro esa información en los documentos provistos.' No inventes nada, no supongas nada y no agregues comentarios aclaratorios sobre tus capacidades.\n\n"
+        "Contexto extraído de los archivos (Este texto es tu base de datos real):\n{context}"
     )
-    prompt = ChatPromptTemplate.from_messages([("system", instrucciones), ("human", "{input}")])
-    cadena_documentos = create_stuff_documents_chain(llm, prompt)
-    print("🚀 Servidor de IA indexado y listo.")
 
+
+    prompt = ChatPromptTemplate.from_messages([("system", instrucciones), ("human", "{input}")])
+    
+    # Guardamos la cadena combinadora en una variable global para reutilizarla dinámicamente
+    cadena_combinada_global = create_stuff_documents_chain(llm, prompt)
+    recuperador = base_datos.as_retriever(search_kwargs={"k": 5})
+    cadena_documentos = create_retrieval_chain(recuperador, cadena_combinada_global)
+    print("🚀 Sistema RAG inicializado con éxito.")
+# ==========================================
+# 🔄 CICLO DE VIDA DE FASTAPI (LIFESPAN)
+# ==========================================
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def ciclo_vida(app: FastAPI):
+    """Maneja el arranque seguro de los vectores antes de escuchar peticiones HTTP."""
     inicializar_sistema()
     yield
+    print("🛑 Servidor detenido de manera limpia.")
 
-app = FastAPI(title="API Servidor RAG", lifespan=lifespan)
+app = FastAPI(
+    title="Asistente de IA para PDFs y XMLs",
+    lifespan=ciclo_vida
+)
 
+# Variable global para retener la referencia de la cadena de combinación
+cadena_combinada_global = None
+
+# ==========================================
+# 🛣️ ENDPOINTS / RUTAS DE LA API
+# ==========================================
 @app.get("/")
 def ruta_raiz():
-    return {"status": "online"}
-
-@app.post("/actualizar-sensores")
-def actualizar_sensores(datos: DatosSensores):
-    global ultimas_mediciones_fisicas
-    ultimas_mediciones_fisicas["humedad_suelo"] = datos.humedad_suelo
-    ultimas_mediciones_fisicas["temperatura"] = datos.temperatura
-    return {"status": "telemetria_recibida", "datos": ultimas_mediciones_fisicas}
-
+    """Muestra el estado del backend y la lista de archivos indexados."""
+    return {
+        "estado": "activo",
+        "archivos_indexados": len(archivos_disponibles),
+        "lista_archivos": archivos_disponibles
+    }
 @app.post("/preguntar")
 def preguntar_ia(consulta: Consulta):
-    global base_datos, cadena_documentos, ultima_respuesta_ia, archivos_disponibles, ultimas_mediciones_fisicas
-    if base_datos is None or cadena_documentos is None:
+    global base_datos, cadena_documentos, ultima_respuesta_ia, archivos_disponibles, cadena_combinada_global
+    
+    if base_datos is None or cadena_documentos is None or cadena_combinada_global is None:
         raise HTTPException(status_code=503, detail="El sistema de IA no está inicializado.")
+        
     try:
         if not archivos_disponibles and os.path.exists(CARPETA_PDFS):
             archivos_disponibles = os.listdir(CARPETA_PDFS)
 
-               # 🕵️‍♂️ ENRUTADOR DINÁMICO DE ARCHIVOS (CORREGIDO)
+        # 🕵️‍♂️ ENRUTADOR DINÁMICO DE ARCHIVOS CON LOGICA DIFUSA (FUZZY MATCHING)
+        import difflib
+        
         archivo_objetivo = None
+        mejor_coincidencia_porcentaje = 0.0
+        pregunta_low = consulta.pregunta.lower()
+        
+        # 1. Primera pasada: Coincidencia directa por sub-cadenas
         for archivo in archivos_disponibles:
-            # os.path.splitext devuelve una tupla (nombre, ext). Usamos [0] para sacar solo el nombre.
-            nombre_sin_ext = os.path.splitext(archivo)[0] 
-            if nombre_sin_ext.lower() in consulta.pregunta.lower() or archivo.lower() in consulta.pregunta.lower():
+            nombre_sin_ext = os.path.splitext(archivo)[0].lower()
+            archivo_low = archivo.lower()
+            
+            if nombre_sin_ext in pregunta_low or archivo_low in pregunta_low:
                 archivo_objetivo = archivo
                 break
+                
+        # 2. Segunda pasada: Si no hay coincidencia exacta, busca palabras clave similares (ej: "abacos" o "protecion")
+        if not archivo_objetivo:
+            palabras_pregunta = pregunta_low.split()
+            for archivo in archivos_disponibles:
+                nombre_sin_ext = os.path.splitext(archivo)[0].lower()
+                
+                for palabra in palabras_pregunta:
+                    if len(palabra) > 3:  # Ignoramos conectores cortos como "de", "los", "las"
+                        # Comparamos si la palabra de la pregunta se parece al nombre del archivo
+                        similitud = difflib.SequenceMatcher(None, palabra, nombre_sin_ext).ratio()
+                        if similitud > mejor_coincidencia_porcentaje and similitud > 0.45:
+                            mejor_coincidencia_porcentaje = similitud
+                            archivo_objetivo = archivo
 
-        
-        search_kwargs = {"k": 7}
+        search_kwargs = {"k": 8}
         if archivo_objetivo:
             search_kwargs["filter"] = {"source": archivo_objetivo}
-            print(f"🎯 Consulta enrutada exclusivamente al archivo: {archivo_objetivo}")
+            print(f"🎯 Consulta enrutada dinámicamente al archivo: {archivo_objetivo}")
         else:
             print("🌍 Consulta global distribuida en todos los documentos.")
             
         recuperador_dinamico = base_datos.as_retriever(search_kwargs=search_kwargs)
-        sistema_ia_dinamico = create_retrieval_chain(recuperador_dinamico, cadena_documentos)
         
-        bloque_sensores = (
-            f"\n\n[DATOS DE SENSORES EN TIEMPO REAL EN EL CAMPO]:\n"
-            f"- Humedad actual del suelo: {ultimas_mediciones_fisicas['humedad_suelo']}% \n"
-            f"- Temperatura ambiente: {ultimas_mediciones_fisicas['temperatura']}°C\n"
-            f"Utilizá estos valores físicos actuales para contrastarlos con los límites técnicos de los PDFs.\n"
-        )
+        # Enlazamos el recuperador con la cadena global limpia de combinación
+        sistema_ia_dinamico = create_retrieval_chain(recuperador_dinamico, cadena_combinada_global)
         
-        pregunta_enriquecida = consulta.pregunta + bloque_sensores
-        resultado = sistema_ia_dinamico.invoke({"input": pregunta_enriquecida})
-        ultima_respuesta_ia = resultado["answer"]
+        # Inferencia limpia con la pregunta directa del usuario
+        resultado = sistema_ia_dinamico.invoke({"input": consulta.pregunta})
         
+        ultima_respuesta_ia = resultado.get("answer", "")
+
+        # Procesamiento de fuentes citadas
+                # Procesamiento limpio y seguro de fuentes citadas
         fuentes = []
         documentos_recuperados = resultado.get("context", [])
             
         for doc in documentos_recuperados:
             archivo = doc.metadata.get("source", "Desconocido")
-            pagina = doc.metadata.get("page", 1)
+            pagina = doc.metadata.get("page")
             
             if archivo and archivo != "vacio" and archivo != "Desconocido":
                 if archivo.lower().endswith(('.xml', '.xlm')):
                     fuentes.append(f"• {archivo}")
                 else:
-                    fuentes.append(f"• {archivo} (Pág. {pagina})")
+                    # Validamos de forma segura si la página existe y es válida
+                    if pagina is not None and str(pagina).strip() != "":
+                        fuentes.append(f"• {archivo} (Pág. {pagina})")
+                    else:
+                        fuentes.append(f"• {archivo}")
                     
         fuentes_unicas = list(sorted(set(fuentes)))
-        return {"respuesta": resultado["answer"], "fuentes": fuentes_unicas}
+        return {"respuesta": ultima_respuesta_ia, "fuentes": fuentes_unicas}
+
+        
     except Exception as e:
         import traceback
         print("❌ ERROR DETECTADO EN EL ENDPOINT /PREGUNTAR:")
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.post("/exportar")
 def exportar_a_excel():
     global ultima_respuesta_ia
     if not ultima_respuesta_ia:
         raise HTTPException(status_code=400, detail="No hay datos previos para exportar.")
+        
     try:
         lineas = ultima_respuesta_ia.split('\n')
         tablas_encontradas = []
@@ -294,16 +330,15 @@ def exportar_a_excel():
             tablas_encontradas.append(tabla_actual)
             
         if not tablas_encontradas:
-            raise HTTPException(status_code=404, detail="No se encontraron tablas.")
+            raise HTTPException(status_code=404, detail="No se encontraron tablas en formato Markdown.")
             
-                # --- REPARACIÓN DE VARIABLES MATRICIALES EN EXPORTAR ---
-        datos_tabla = tablas_encontradas[0] # Extraemos la primera tabla detectada
+        # [REPARACIÓN] Extraemos la primera matriz de forma correcta con el índice [0]
+        datos_tabla = tablas_encontradas[0]
         if len(datos_tabla) < 2:
-            raise HTTPException(status_code=404, detail="La tabla no contiene datos suficientes.")
+            raise HTTPException(status_code=404, detail="La tabla no contiene filas suficientes.")
             
-        encabezados = datos_tabla[0] # La primera fila son los títulos
-        filas = datos_tabla[1:]      # El resto son los registros
-
+        encabezados = datos_tabla[0]
+        filas = datos_tabla[1:]
         
         num_columnas = len(encabezados)
         filas_normalizadas = []
@@ -315,7 +350,11 @@ def exportar_a_excel():
             filas_normalizadas.append(f)
         
         df = pd.DataFrame(filas_normalizadas, columns=encabezados)
+        
         ruta_escritorio = os.path.join(os.path.expanduser("~"), "Desktop")
+        if not os.path.exists(ruta_escritorio):
+            ruta_escritorio = os.getcwd()
+            
         ruta_excel = os.path.join(ruta_escritorio, 'Tabla_Exportada_IA.xlsx')
         
         with pd.ExcelWriter(ruta_excel, engine='openpyxl') as writer:
@@ -328,13 +367,13 @@ def exportar_a_excel():
             worksheet = writer.sheets["Datos IA"]
             
             fill_cabecera = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid")
-            font_cabecera = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
+            font_cabecera = Font(name="Segoe UI", size=11, bold=True, color="FFFFFF")
             align_centro = Alignment(horizontal="center", vertical="center", wrap_text=True)
             
             borde_fino = Side(border_style="thin", color="D9D9D9")
             cuadrícula = Border(left=borde_fino, right=borde_fino, top=borde_fino, bottom=borde_fino)
             
-            for cell in worksheet:
+            for cell in worksheet[1]: # [REPARACIÓN] Aplicar estilos únicamente a la primera fila (Cabecera)
                 cell.fill = fill_cabecera
                 cell.font = font_cabecera
                 cell.alignment = align_centro
@@ -347,19 +386,17 @@ def exportar_a_excel():
                 for cell in col:
                     if cell.row > 1: 
                         cell.border = cuadrícula
-                        cell.alignment = Alignment(vertical="center")
+                        cell.font = Font(name="Segoe UI", size=10)
+                        cell.alignment = Alignment(vertical="center", horizontal="left")
                     if cell.value:
                         max_len = max(max_len, len(str(cell.value)))
                         
-                worksheet.column_dimensions[col_letter].width = max(max_len + 4, 12)
+                worksheet.column_dimensions[col_letter].width = max(max_len + 5, 15)
                 
         return {"status": "success", "archivo": ruta_excel}
+        
     except Exception as e:
         import traceback
         print("❌ ERROR DETECTADO EN EL ENDPOINT /EXPORTAR:")
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
-
-if __name__ == "__main__":
-    uvicorn.run(app, host="127.0.0.1", port=8000)
-
